@@ -71,23 +71,31 @@ with st.form("mobility_survey"):
 
 if submitted:
     answer = {
-        "Возраст": int(age), "Курс": course, "Основной транспорт": transport,
-        "Время в пути": duration, "Расходы за день": cost,
-        "Удовлетворённость (1–10)": int(satisfaction), "Опоздания": frequency,
-        "Проверка маршрута": planning, "Факторы выбора": factors,
-        "Что улучшить": improvement.strip(), "Время отправки": datetime.now(timezone.utc).isoformat()
+        "Возраст": int(age),
+        "Курс": course,
+        "Основной транспорт": transport,
+        "Время в пути": duration,
+        "Расходы за день": cost,
+        "Удовлетворённость (1–10)": int(satisfaction),
+        "Опоздания": frequency,
+        "Проверка маршрута": planning,
+        "Факторы выбора": factors,
+        "Что улучшить": improvement.strip(),
+        "Время отправки": datetime.now(timezone.utc).isoformat()
     }
+
     if not db_ready:
         st.error("Ответ не сохранён: база данных не подключена.")
     else:
         try:
-            
-supabase.table("survey_responses").insert(
-    {"answers": answer},
-    returning="minimal"
-).execute()": answer}).execute()
+            supabase.table("survey_responses").insert(
+                {"answers": answer},
+                returning="minimal"
+            ).execute()
+
             st.session_state.responses.append(answer)
             st.success("Спасибо! Ваш ответ сохранён в базе данных.")
+
         except Exception as exc:
             st.error("Не удалось сохранить ответ. Проверьте подключение и права таблицы.")
             with st.expander("Техническая информация"):
