@@ -22,9 +22,20 @@ def get_supabase():
 try:
     supabase = get_supabase()
     db_ready, db_error = True, None
+
 except Exception as exc:
     supabase, db_ready, db_error = None, False, str(exc)
 
+
+@st.cache_data(ttl=10)
+def load_responses():
+    result = (
+        get_supabase()
+        .table("survey_responses")
+        .select("answers")
+        .execute()
+    )
+    return [row["answers"] for row in result.data]
 st.markdown("""
 <style>
 .stApp { background: #fbf6ef; color: #302a31; }
@@ -102,15 +113,24 @@ if submitted:
                 st.code(str(exc))
 
 st.divider()
-st.subheader("📊 Результаты опроса в этом сеансе")
-st.caption("Для защиты анонимности графики показывают ответы только текущего сеанса. Отправленные анкеты сохраняются в базе данных.")
-responses = st.session_state.responses
+st.subheader("📊 Общие результаты опроса")
+st.caption("Статистика построена по ответам, сохранённым в базе данных.")
+if db_ready:
+    try:
+        responses = load_responses()
+    except Exception as exc:
+        responses = []
+        st.error("Не удалось загрузить ответы из базы данных.")
+        with st.expander("Техническая информация"):
+            st.code(str(exc))
+else:
+    responses = []
 if not responses:
-    st.info("Пока нет ответов в этом сеансе. Заполните анкету выше, чтобы увидеть сводку и графики.")
+    st.info("Пока в базе данных нет ответов. Заполните анкету выше, чтобы увидеть сводку и графики.")
 else:
     df = pd.DataFrame(responses)
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ответов в этом сеансе", len(df))
+    c1.metric("Всего ответов", len(df))
     c2.metric("Средняя удовлетворённость", f"{df['Удовлетворённость (1–10)'].mean():.1f} / 10")
     c3.metric("Самый частый транспорт", df["Основной транспорт"].mode().iat[0])
     st.dataframe(df.drop(columns=["Что улучшить", "Факторы выбора"]), use_container_width=True, hide_index=True)
