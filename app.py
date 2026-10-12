@@ -127,9 +127,12 @@ if db_ready:
 else:
     responses = st.session_state.responses.copy()
 if not responses:
-    st.info("Пока в базе данных нет ответов. Заполните анкету выше, чтобы увидеть сводку и графики.")
+    st.warning("Ответы не загружены. Проверяем источник данных.")
+    st.write("Ответов в текущем сеансе:", len(st.session_state.responses))
 else:
     df = pd.DataFrame(responses)
+    st.write("Ответов для построения графиков:", len(df))
+    st.write("Столбцы данных:", list(df.columns))
     c1, c2, c3 = st.columns(3)
     c1.metric("Всего ответов", len(df))
     c2.metric("Средняя удовлетворённость", f"{df['Удовлетворённость (1–10)'].mean():.1f} / 10")
