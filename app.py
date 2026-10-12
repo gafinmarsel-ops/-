@@ -1,14 +1,23 @@
 import streamlit as st
 import pandas as pd
+import socket
+from urllib.parse import urlparse
 import plotly.express as px
 from datetime import datetime, timezone
 from supabase import create_client
 
-st.set_page_config(page_title="Маршрут студента", page_icon="🚌", layout="wide")
+st.set_page_config(
+    page_title="Маршрут студента",
+    page_icon="🚌",
+    layout="wide"
+)
 
 @st.cache_resource
 def get_supabase():
-    return create_client(st.secrets["SUPABASE_URL"].rstrip("/"), st.secrets["SUPABASE_KEY"])
+    return create_client(
+        st.secrets["SUPABASE_URL"].rstrip("/"),
+        st.secrets["SUPABASE_KEY"]
+    )
 
 try:
     supabase = get_supabase()
