@@ -119,12 +119,13 @@ if db_ready:
     try:
         responses = load_responses()
     except Exception as exc:
-        responses = []
-        st.error("Не удалось загрузить ответы из базы данных.")
+        responses = st.session_state.responses.copy()
+        st.error("Не удалось загрузить общую статистику из базы данных.")
+        st.warning("Пока показываем ответы, отправленные в текущем сеансе.")
         with st.expander("Техническая информация"):
             st.code(str(exc))
 else:
-    responses = []
+    responses = st.session_state.responses.copy()
 if not responses:
     st.info("Пока в базе данных нет ответов. Заполните анкету выше, чтобы увидеть сводку и графики.")
 else:
