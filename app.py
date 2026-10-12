@@ -81,7 +81,11 @@ if submitted:
         st.error("Ответ не сохранён: база данных не подключена.")
     else:
         try:
-            supabase.table("survey_responses").insert({"answers": answer}).execute()
+            
+supabase.table("survey_responses").insert(
+    {"answers": answer},
+    returning="minimal"
+).execute()": answer}).execute()
             st.session_state.responses.append(answer)
             st.success("Спасибо! Ваш ответ сохранён в базе данных.")
         except Exception as exc:
