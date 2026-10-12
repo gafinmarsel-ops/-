@@ -27,16 +27,11 @@ except Exception as exc:
     supabase, db_ready, db_error = None, False, str(exc)
 
 
+
 @st.cache_data(ttl=10)
-def load_responses():
-    result = (
-        get_supabase()
-        .table("survey_responses")
-        .select("answers")
-        .execute()
-    )
-    return [row["answers"] for row in result.data]
-st.markdown("""
+def load_stats():
+    result = get_supabase().rpc("get_survey_stats").execute()
+    return result.data
 <style>
 .stApp { background: #fbf6ef; color: #302a31; }
 .block-container { max-width: 1120px; padding-top: 1.8rem; padding-bottom: 3rem; }
@@ -113,97 +108,57 @@ if submitted:
                 st.code(str(exc))
 
 
+
 st.divider()
 st.subheader("📊 Общие результаты опроса")
-st.caption("Статистика по сохранённым ответам.")
-
-# Сначала пытаемся загрузить все ответы из базы.
-responses = []
-load_error = None
+st.caption("Статистика по всем сохранённым анкетам.")
 
 if db_ready:
     try:
-        load_responses.clear()
-        responses = load_responses()
-    except Exception as exc:
-        load_error = str(exc)
+        stats = load_stats()
 
-# Если база не читается, показываем ответы текущего сеанса.
-if not responses:
-    responses = st.session_state.responses.copy()
+        total = int(stats.get("total") or 0)
+        transports = stats.get("transport_counts") or {}
+        durations = stats.get("duration_counts") or {}
 
-if load_error:
-    st.warning("Не удалось загрузить все ответы из базы. Пока показаны ответы текущего сеанса.")
-    with st.expander("Причина ошибки"):
-        st.code(load_error)
-
-if not responses:
-    st.info("Пока нет доступных ответов. Отправь анкету, чтобы проверить графики.")
-else:
-    df = pd.DataFrame(responses)
-
-    required = [
-        "Основной транспорт",
-        "Время в пути",
-        "Удовлетворённость (1–10)"
-    ]
-    missing = [column for column in required if column not in df.columns]
-
-    if missing:
-        st.error("В сохранённых ответах отсутствуют необходимые поля: " + ", ".join(missing))
-    else:
         c1, c2, c3 = st.columns(3)
-        c1.metric("Количество ответов", len(df))
+        c1.metric("Всего ответов", total)
+
+        avg = stats.get("avg_satisfaction")
         c2.metric(
             "Средняя удовлетворённость",
-            f"{pd.to_numeric(df['Удовлетворённость (1–10)'], errors='coerce').mean():.1f} / 10"
-        )
-        mode = df["Основной транспорт"].mode()
-        c3.metric("Самый частый транспорт", mode.iloc[0] if not mode.empty else "Нет данных")
-
-        hidden_columns = [
-            column for column in ["Что улучшить", "Факторы выбора"]
-            if column in df.columns
-        ]
-        st.dataframe(
-            df.drop(columns=hidden_columns),
-            use_container_width=True,
-            hide_index=True
+            f"{avg} / 10" if avg is not None else "Нет данных"
         )
 
-        csv = df.drop(
-            columns=["Что улучшить"] if "Что улучшить" in df.columns else []
-        ).to_csv(index=False).encode("utf-8-sig")
-
-        st.download_button(
-            "⬇️ Скачать ответы в CSV",
-            csv,
-            "student_mobility_responses.csv",
-            "text/csv"
+        most_common = (
+            max(transports, key=transports.get)
+            if transports else "Нет данных"
         )
+        c3.metric("Самый частый транспорт", most_common)
 
         a, b = st.columns(2)
 
         with a:
-            counts = (
-                df["Основной транспорт"]
-                .value_counts()
-                .rename_axis("Способ передвижения")
-                .reset_index(name="Количество")
-            )
-            fig = px.bar(
-                counts,
-                x="Способ передвижения",
-                y="Количество",
-                title="Каким транспортом пользуются чаще",
-                color_discrete_sequence=["#6d3b72"]
-            )
-            fig.update_layout(
-                plot_bgcolor="#fffdf9",
-                paper_bgcolor="#fffdf9",
-                font_color="#302a31"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if transports:
+                transport_df = pd.DataFrame(
+                    list(transports.items()),
+                    columns=["Способ передвижения", "Количество"]
+                )
+                fig = px.bar(
+                    transport_df,
+                    x="Способ передвижения",
+                    y="Количество",
+                    title="Каким транспортом пользуются чаще",
+                    color_discrete_sequence=["#6d3b72"]
+                )
+                fig.update_layout(
+                    plot_bgcolor="#fffdf9",
+                    paper_bgcolor="#fffdf9",
+                    font_color="#302a31"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Пока нет данных о транспорте.")
 
         with b:
             order = [
@@ -213,15 +168,14 @@ else:
                 "46–60 минут",
                 "Больше часа"
             ]
-            counts = (
-                df["Время в пути"]
-                .value_counts()
-                .reindex(order, fill_value=0)
-                .rename_axis("Время в пути")
-                .reset_index(name="Количество")
-            )
+            duration_df = pd.DataFrame({
+                "Время в пути": order,
+                "Количество": [
+                    int(durations.get(item, 0)) for item in order
+                ]
+            })
             fig = px.bar(
-                counts,
+                duration_df,
                 x="Время в пути",
                 y="Количество",
                 title="Продолжительность дороги",
@@ -234,4 +188,13 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-st.caption("Учебный опрос. Не вводите имя, телефон, адрес или другие личные данные.")
+    except Exception as exc:
+        st.error("Не удалось загрузить общую статистику.")
+        with st.expander("Техническая информация"):
+            st.code(str(exc))
+else:
+    st.error("Нет подключения к базе данных.")
+
+st.caption(
+    "Учебный опрос. Показаны только обобщённые результаты."
+)
