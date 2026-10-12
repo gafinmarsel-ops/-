@@ -112,44 +112,126 @@ if submitted:
             with st.expander("Техническая информация"):
                 st.code(str(exc))
 
+
 st.divider()
 st.subheader("📊 Общие результаты опроса")
-st.caption("Статистика построена по ответам, сохранённым в базе данных.")
+st.caption("Статистика по сохранённым ответам.")
+
+# Сначала пытаемся загрузить все ответы из базы.
+responses = []
+load_error = None
+
 if db_ready:
     try:
+        load_responses.clear()
         responses = load_responses()
     except Exception as exc:
-        responses = st.session_state.responses.copy()
-        st.error("Не удалось загрузить общую статистику из базы данных.")
-        st.warning("Пока показываем ответы, отправленные в текущем сеансе.")
-        with st.expander("Техническая информация"):
-            st.code(str(exc))
-else:
-    responses = st.session_state.responses.copy()
+        load_error = str(exc)
+
+# Если база не читается, показываем ответы текущего сеанса.
 if not responses:
-    st.warning("Ответы не загружены. Проверяем источник данных.")
-    st.write("Ответов в текущем сеансе:", len(st.session_state.responses))
+    responses = st.session_state.responses.copy()
+
+if load_error:
+    st.warning("Не удалось загрузить все ответы из базы. Пока показаны ответы текущего сеанса.")
+    with st.expander("Причина ошибки"):
+        st.code(load_error)
+
+if not responses:
+    st.info("Пока нет доступных ответов. Отправь анкету, чтобы проверить графики.")
 else:
     df = pd.DataFrame(responses)
-    st.write("Ответов для построения графиков:", len(df))
-    st.write("Столбцы данных:", list(df.columns))
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Всего ответов", len(df))
-    c2.metric("Средняя удовлетворённость", f"{df['Удовлетворённость (1–10)'].mean():.1f} / 10")
-    c3.metric("Самый частый транспорт", df["Основной транспорт"].mode().iat[0])
-    st.dataframe(df.drop(columns=["Что улучшить", "Факторы выбора"]), use_container_width=True, hide_index=True)
-    st.download_button("⬇️ Скачать ответы этого сеанса в CSV", df.drop(columns=["Что улучшить"]).to_csv(index=False).encode("utf-8-sig"), "student_mobility_responses.csv", "text/csv")
-    a, b = st.columns(2)
-    with a:
-        counts = df["Основной транспорт"].value_counts().rename_axis("Способ передвижения").reset_index(name="Количество")
-        fig = px.bar(counts, x="Способ передвижения", y="Количество", title="Каким транспортом пользуются чаще", color_discrete_sequence=["#6d3b72"])
-        fig.update_layout(plot_bgcolor="#fffdf9", paper_bgcolor="#fffdf9", font_color="#302a31")
-        st.plotly_chart(fig, use_container_width=True)
-    with b:
-        order = ["До 15 минут", "15–30 минут", "31–45 минут", "46–60 минут", "Больше часа"]
-        counts = df["Время в пути"].value_counts().reindex(order, fill_value=0).rename_axis("Время в пути").reset_index(name="Количество")
-        fig = px.bar(counts, x="Время в пути", y="Количество", title="Продолжительность дороги", color_discrete_sequence=["#e58a42"])
-        fig.update_layout(plot_bgcolor="#fffdf9", paper_bgcolor="#fffdf9", font_color="#302a31")
-        st.plotly_chart(fig, use_container_width=True)
+
+    required = [
+        "Основной транспорт",
+        "Время в пути",
+        "Удовлетворённость (1–10)"
+    ]
+    missing = [column for column in required if column not in df.columns]
+
+    if missing:
+        st.error("В сохранённых ответах отсутствуют необходимые поля: " + ", ".join(missing))
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Количество ответов", len(df))
+        c2.metric(
+            "Средняя удовлетворённость",
+            f"{pd.to_numeric(df['Удовлетворённость (1–10)'], errors='coerce').mean():.1f} / 10"
+        )
+        mode = df["Основной транспорт"].mode()
+        c3.metric("Самый частый транспорт", mode.iloc[0] if not mode.empty else "Нет данных")
+
+        hidden_columns = [
+            column for column in ["Что улучшить", "Факторы выбора"]
+            if column in df.columns
+        ]
+        st.dataframe(
+            df.drop(columns=hidden_columns),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        csv = df.drop(
+            columns=["Что улучшить"] if "Что улучшить" in df.columns else []
+        ).to_csv(index=False).encode("utf-8-sig")
+
+        st.download_button(
+            "⬇️ Скачать ответы в CSV",
+            csv,
+            "student_mobility_responses.csv",
+            "text/csv"
+        )
+
+        a, b = st.columns(2)
+
+        with a:
+            counts = (
+                df["Основной транспорт"]
+                .value_counts()
+                .rename_axis("Способ передвижения")
+                .reset_index(name="Количество")
+            )
+            fig = px.bar(
+                counts,
+                x="Способ передвижения",
+                y="Количество",
+                title="Каким транспортом пользуются чаще",
+                color_discrete_sequence=["#6d3b72"]
+            )
+            fig.update_layout(
+                plot_bgcolor="#fffdf9",
+                paper_bgcolor="#fffdf9",
+                font_color="#302a31"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with b:
+            order = [
+                "До 15 минут",
+                "15–30 минут",
+                "31–45 минут",
+                "46–60 минут",
+                "Больше часа"
+            ]
+            counts = (
+                df["Время в пути"]
+                .value_counts()
+                .reindex(order, fill_value=0)
+                .rename_axis("Время в пути")
+                .reset_index(name="Количество")
+            )
+            fig = px.bar(
+                counts,
+                x="Время в пути",
+                y="Количество",
+                title="Продолжительность дороги",
+                color_discrete_sequence=["#e58a42"]
+            )
+            fig.update_layout(
+                plot_bgcolor="#fffdf9",
+                paper_bgcolor="#fffdf9",
+                font_color="#302a31"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 st.caption("Учебный опрос. Не вводите имя, телефон, адрес или другие личные данные.")
