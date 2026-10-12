@@ -28,10 +28,13 @@ except Exception as exc:
 
 
 
+
 @st.cache_data(ttl=10)
 def load_stats():
     result = get_supabase().rpc("get_survey_stats").execute()
     return result.data
+
+st.markdown("""
 <style>
 .stApp { background: #fbf6ef; color: #302a31; }
 .block-container { max-width: 1120px; padding-top: 1.8rem; padding-bottom: 3rem; }
@@ -42,8 +45,10 @@ div[data-testid="stForm"] { background:#fffdf9; border:1px solid #eadbd0; paddin
 .stButton button[kind="primary"], div[data-testid="stFormSubmitButton"] button { background:#6d3b72; border-color:#6d3b72; border-radius:10px; }
 [data-testid="stMetric"] { background:#fffdf9; border:1px solid #eadbd0; padding:1rem; border-radius:14px; }
 </style>
-<div class="hero"><h1>🚌 Маршрут студента</h1>
-<p>Опрос о том, как студенты добираются до учёбы и выбирают городской транспорт</p></div>
+<div class="hero">
+<h1>🚌 Маршрут студента</h1>
+<p>Опрос о том, как студенты добираются до учёбы и выбирают городской транспорт</p>
+</div>
 """, unsafe_allow_html=True)
 
 st.write("Цель анкеты — узнать, какие способы передвижения выбирают студенты, сколько времени занимает дорога и что влияет на выбор маршрута. Опрос анонимный и займёт около 2–3 минут. Не указывайте имя или контактные данные.")
