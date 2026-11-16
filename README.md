@@ -27,8 +27,8 @@ The dashboard displays grouped statistics only after at least five responses hav
 1. Install Python 3.10 or newer.
 2. Clone this repository:
    ```bash
-   git clone https://github.com/gafinmarsel-ops/-.git
-   cd -
+   git clone https://github.com/gafinmarsel-ops/-.git student-commute-survey
+   cd student-commute-survey
    ```
 3. Install dependencies:
    ```bash
